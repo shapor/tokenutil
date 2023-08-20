@@ -2,6 +2,20 @@
 
 `tokenutil` is a command line utility for tokenizing data using the tiktoken algorithm.
 
+## Build & Run
+
+To build:
+```
+go build
+```
+
+To run:
+```
+./tokenutil
+```
+
+See usage details below.
+
 ## Usage
 
 ### Count
