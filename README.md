@@ -14,10 +14,10 @@ tokenutil count [options] [file...]
 
 #### Options
 
+- `-t`: Count tokens. This option is enabled by default.
 - `-l`: Count lines.
 - `-w`: Count words.
 - `-c`: Count characters.
-- `-t`: Count tokens. This option is enabled by default.
 
 If no options are provided, `tokenutil` counts lines, words, characters, and tokens by default.
 
