@@ -14,7 +14,9 @@ import (
 var (
 	name                                    = "tiktokenutil"
 	encoding                                string
+	separatorFlag                           string
 	lineFlag, wordFlag, tokenFlag, charFlag bool
+	statFlag                                bool
 	wordRegex                               = regexp.MustCompile(`\S+`)
 )
 
@@ -26,7 +28,7 @@ func main() {
 
 	var countCmd = &cobra.Command{
 		Use:   "count [file...]",
-		Short: "Count lines, words, tokens, and characters in a file or from stdin",
+		Short: "Count lines, words, tokens, and characters in file(s) or from stdin",
 		Args:  cobra.MinimumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			totalLines, totalWords, totalTokens, totalChars := 0, 0, 0, 0
@@ -59,17 +61,66 @@ func main() {
 		},
 	}
 
+	var encodeCmd = &cobra.Command{
+		Use:   "encode [file...]",
+		Short: "Tokenizes and encodes file(s) or from stdin",
+		Args:  cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			totalTokens := 0
+			if len(args) == 0 {
+				totalTokens += encode(os.Stdin)
+			} else {
+				for _, filePath := range args {
+					file, err := os.Open(filePath)
+					if err != nil {
+						fmt.Println("Error opening file:", err)
+						continue
+					}
+
+					totalTokens += encode(file)
+					file.Close()
+				}
+			}
+			if statFlag {
+				fmt.Fprintf(os.Stderr, "Encoded %v tokens.\n", totalTokens)
+			}
+			return nil
+		},
+	}
+
 	rootCmd.AddCommand(countCmd)
+	rootCmd.AddCommand(encodeCmd)
+	rootCmd.PersistentFlags().StringVarP(&encoding, "model", "m", "gpt-3.5-turbo", "model name to encode for")
 	countCmd.Flags().BoolVarP(&lineFlag, "lines", "l", false, "Count lines")
 	countCmd.Flags().BoolVarP(&wordFlag, "words", "w", false, "Count words")
 	countCmd.Flags().BoolVarP(&tokenFlag, "tokens", "t", true, "Count tokens")
 	countCmd.Flags().BoolVarP(&charFlag, "chars", "c", false, "Count characters")
-	countCmd.PersistentFlags().StringVarP(&encoding, "model", "m", "gpt-3.5-turbo", "model name to encode for")
+	encodeCmd.Flags().BoolVarP(&statFlag, "tokens", "t", false, "Output token count stats to stderr")
+	encodeCmd.Flags().StringVarP(&separatorFlag, "separator", "s", "\n", "Separator string between tokens")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func encode(r io.Reader) int {
+	bytes, _ := io.ReadAll(r)
+	contents := string(bytes)
+	tkm, err := tiktoken.EncodingForModel(encoding)
+	if err != nil {
+		err = fmt.Errorf("getEncoding: %v", err)
+		return 0
+	}
+	token := tkm.Encode(contents, nil, nil)
+	for n, id := range token {
+		if n > 0 {
+			fmt.Print(separatorFlag)
+		}
+		fmt.Print(id)
+	}
+	fmt.Println()
+	return len(token)
 }
 
 func tokenCount(r io.Reader) (int, int, int, int, error) {

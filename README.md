@@ -57,6 +57,35 @@ Count tokens of input received from standard input (only `-t` defaults true):
 echo "This is a test" | tokenutil count
 ```
 
+### Encode
+
+`tokenutil encode` will take input file(s) or read from stdin and output tokens to stdout.
+
+```
+tokenutil encode [options] [file...]
+```
+
+#### Options
+
+- `-t`: Output total token stats to stderr.
+- `-s`: Separator string between tokens (default: `\n`, one token per line)
+
+If no file is specified, `tokenutil` reads from standard input.
+
+#### Examples
+
+Tokenize `file.txt` outputting one token id per line:
+
+```
+tokenutil encode file.txt
+```
+
+Tokenize files `file1.txt` and `file2.txt` and find the top ten tokens:
+
+```
+tokenutil encode -t file1.txt file2.txt | sort | uniq -c | sort -nr | head -10
+```
+
 ## Tiktoken
 
 In `tokenutil` tokenization is performed using the [tiktoken-go](https://github.com/shapor/tiktoken-go) library.
