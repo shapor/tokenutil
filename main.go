@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/gob"
 	"fmt"
 	"io"
 	"os"
@@ -14,7 +15,7 @@ import (
 var (
 	name                                    = "tiktokenutil"
 	encoding                                string
-	separatorFlag                           string
+	separatorFlag, gobFile                  string
 	lineFlag, wordFlag, tokenFlag, charFlag bool
 	statFlag                                bool
 	wordRegex                               = regexp.MustCompile(`\S+`)
@@ -39,7 +40,7 @@ func main() {
 				for _, filePath := range args {
 					file, err := os.Open(filePath)
 					if err != nil {
-						fmt.Println("Error opening file:", err)
+						fmt.Fprintf(os.Stderr, "Error opening file: %v\n", err)
 						continue
 					}
 
@@ -67,17 +68,24 @@ func main() {
 		Args:  cobra.MinimumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			totalTokens := 0
+			var err error
 			if len(args) == 0 {
-				totalTokens += encode(os.Stdin)
+				if totalTokens, err = encode(os.Stdin); err != nil {
+					return err
+				}
 			} else {
 				for _, filePath := range args {
 					file, err := os.Open(filePath)
 					if err != nil {
-						fmt.Println("Error opening file:", err)
+						fmt.Fprintf(os.Stderr, "Error opening file %s: %v\n", filePath, err)
 						continue
 					}
-
-					totalTokens += encode(file)
+					tokens, err := encode(file)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "Error encoding file %s: %v\n", filePath, err)
+						continue
+					}
+					totalTokens += tokens
 					file.Close()
 				}
 			}
@@ -97,22 +105,34 @@ func main() {
 	countCmd.Flags().BoolVarP(&charFlag, "chars", "c", false, "Count characters")
 	encodeCmd.Flags().BoolVarP(&statFlag, "tokens", "t", false, "Output token count stats to stderr")
 	encodeCmd.Flags().StringVarP(&separatorFlag, "separator", "s", "\n", "Separator string between tokens")
+	encodeCmd.Flags().StringVarP(&gobFile, "gobfile", "g", "", "Output encoded binary to .gob file")
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
-func encode(r io.Reader) int {
+func encode(r io.Reader) (int, error) {
 	bytes, _ := io.ReadAll(r)
 	contents := string(bytes)
 	tkm, err := tiktoken.EncodingForModel(encoding)
 	if err != nil {
-		err = fmt.Errorf("getEncoding: %v", err)
-		return 0
+		return 0, fmt.Errorf("getEncoding: %v", err)
 	}
 	token := tkm.Encode(contents, nil, nil)
+	if gobFile != "" {
+		w, err := os.Create(gobFile)
+		if err != nil {
+			return 0, fmt.Errorf("creating gob output: %v", err)
+		}
+		encoder := gob.NewEncoder(w)
+		err = encoder.Encode(token)
+		if err != nil {
+			return 0, fmt.Errorf("writing gob: %v", err)
+		}
+		w.Close()
+		return len(token), nil
+	}
 	for n, id := range token {
 		if n > 0 {
 			fmt.Print(separatorFlag)
@@ -120,7 +140,7 @@ func encode(r io.Reader) int {
 		fmt.Print(id)
 	}
 	fmt.Println()
-	return len(token)
+	return len(token), nil
 }
 
 func tokenCount(r io.Reader) (int, int, int, int, error) {
