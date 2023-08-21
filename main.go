@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -73,21 +74,23 @@ func main() {
 				if totalTokens, err = encode(os.Stdin); err != nil {
 					return err
 				}
-			} else {
-				for _, filePath := range args {
-					file, err := os.Open(filePath)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "Error opening file %s: %v\n", filePath, err)
-						continue
-					}
-					tokens, err := encode(file)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "Error encoding file %s: %v\n", filePath, err)
-						continue
-					}
-					totalTokens += tokens
-					file.Close()
+			}
+			if len(args) > 1 && gobFile != "" {
+				return errors.New("Creating gob file from multiple inputs not supported.")
+			}
+			for _, filePath := range args {
+				file, err := os.Open(filePath)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error opening file %s: %v\n", filePath, err)
+					continue
 				}
+				tokens, err := encode(file)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error encoding file %s: %v\n", filePath, err)
+					continue
+				}
+				totalTokens += tokens
+				file.Close()
 			}
 			if statFlag {
 				fmt.Fprintf(os.Stderr, "Encoded %v tokens.\n", totalTokens)
